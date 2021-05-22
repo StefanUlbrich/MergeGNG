@@ -69,8 +69,8 @@ templates_path = ['_templates']
 intersphinx_mapping = {
     'sklearn': ('https://scikit-learn.org/stable/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
-    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
-    'matplotlib': ('http://matplotlib.sourceforge.net/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'matplotlib': (' https://matplotlib.org/', None),
     'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
     'sklearn': ('http://scikit-learn.org/stable', None)
 }# List of patterns, relative to source directory, that match files and

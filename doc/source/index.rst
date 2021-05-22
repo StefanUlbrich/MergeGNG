@@ -6,9 +6,10 @@
 Welcome to mgng
 ==============================
 
-A super fancy science package, for instance for Kinematic Bézier Maps [ulbrich2011]_.
-Don't forget to run :code:`make api`! User `intersphinx <https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html>`_: 
-:class:`sklearn.base.BaseEstimator`.
+Simple implementation of the merge growing neural gas based on  [Andreakis2009]_.
+
+.. Don't forget to run :code:`make api`! Uses `intersphinx <https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html>`_: :class:`sklearn.base.BaseEstimator`.
+
 
 Contents
 ^^^^^^^^
@@ -17,13 +18,14 @@ Contents
    :maxdepth: 2
 
    about
-   api/modules
+   merge_growing_neural_gas
+   ../api/modules
 
 
 Bibliography
 ^^^^^^^^^^^^
 
-.. [ulbrich2011] : S. Ulbrich, V. Ruiz de Angulo, C. Torras, T. Asfour and R. Dillman. Kinematic Bézier maps. IEEE Transactions on Systems, Man and Cybernetics: Part B, 42(4): 1215-1230, 2012. 
+.. [Andreakis2009] : A. Andreakis, N. v. Hoyningen-Huene, and M. Beetz, *Incremental Unsupervised Time Series Analysis using Merge Growing Neural Gas*. Advances in Self-Organizing Maps: 10–18, 2009.
 
 Indices and tables
 ^^^^^^^^^^^^^^^^^^
