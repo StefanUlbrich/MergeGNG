@@ -1,0 +1,64 @@
+[tool.poetry]
+name = "mgng"
+version = "0.1.1"
+description = "mgng"
+authors = ["Stefan Ulbrich <stefan.frank.ulbrich@gmail.com>"]
+readme = "README.md"
+classifiers = [
+   "Private :: Do Not Upload", # https://github.com/sdispater/poetry/issues/302#issuecomment-467805206
+]
+packages = [
+   { include = "mgng", from = "src"}
+]
+# build = 'build.py' # https://github.com/python-poetry/poetry/issues/11
+
+
+[tool.poetry.dependencies]
+python = "^3.7"
+scikit-learn = "^0.22.2"
+numpy = "^1.18.1"
+attrs = "^19.3.0"
+
+[tool.poetry.dev-dependencies]
+sphinx = "^2.4.4"
+ipykernel = "^5.1.4"
+pylint = "^2.4.4"
+autopep8 = "^1.5"
+rope = "^0.16.0"
+pytest = "^5.3.5"
+pyenchant = "^3.0.1"
+doc8 = "^0.8.0"
+nbsphinx = "^0.5.1"
+scipy = "1.3.2"
+recommonmark = "^0.6.0"
+matplotlib = "^3.2.0"
+seaborn = "^0.10.0"
+black = "^19.10b0"
+nb_black = "^1.0.7"
+mypy = "^0.770"
+
+
+[tool.black]
+line-length = 100
+target-version = ['py37']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.mypy_cache
+    | \.tox
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+)
+'''
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+

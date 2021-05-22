@@ -1,0 +1,25 @@
+{
+    "files.exclude": {
+        "**/*.egg-info": true,
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/.ipynb_checkpoints": true,
+        "**/.mypy_cache": true
+    },
+    "python.formatting.autopep8Args": [
+        "--max-line-length=120"
+    ],
+    "autoDocstring.docstringFormat": "numpy",
+    "autoDocstring.guessTypes": true,
+    "autoDocstring.includeExtendedSummary": true,
+    "autoDocstring.startOnNewLine": true,
+    "files.trimTrailingWhitespace": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "editor.trimAutoWhitespace": true,
+    "python.linting.mypyEnabled": true
+}
