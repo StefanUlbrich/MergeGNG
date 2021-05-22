@@ -10,7 +10,7 @@ This project has been created with my [cookiecutter for science projects](https:
 
 This packages implements the MGNG algorithm as a vanilla [numpy](https://numpy.org/) implementation (which can be executed on the GPU with [Cupy](https://cupy.chainer.org/)). The package uses modern python tools such as [poetry](https://python-poetry.org/), [attrs](https://www.attrs.org/en/stable/) (a focus has been laid on those two for this release), and sphinx and mypy/pylint/black for documentation and coding standards.
 
-See the notebooks in the repective subfolder of the project root
+See the notebooks in the repective subfolder of the project root and the [documentation](https://stefanulbrich.github.io/MergeGNG/api/mgng.mgng.html).
 
 ## Installation and development
 

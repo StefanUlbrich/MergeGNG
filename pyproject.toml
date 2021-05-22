@@ -38,6 +38,7 @@ nb_black = "^1.0.7"
 mypy = "^0.812"
 yapf = "^0.31.0"
 ipywidgets = "^7.6.3"
+sphinx-material = "^0.0.32"
 
 
 [tool.black]
