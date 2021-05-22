@@ -1,0 +1,498 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mgng.mgng &#8212; mgng 0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for mgng.mgng</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implementation of the Merged Growing Neural Gas for temporal data.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s2">&quot;Stefan Ulbrich&quot;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s2">&quot;Copyright 2020, All rights reserved.&quot;</span>
+<span class="c1"># __credits__ = []</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s2">&quot;Confidential&quot;</span>
+<span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.1&quot;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s2">&quot;Stefan Ulbrich&quot;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s2">&quot;Stefan.Ulbrich@gmail.com&quot;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s2">&quot;alpha&quot;</span>
+<span class="n">__date__</span> <span class="o">=</span> <span class="s2">&quot;2020-01-27&quot;</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;MergeGNG&quot;</span><span class="p">]</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">attr</span> <span class="kn">import</span> <span class="n">attrib</span><span class="p">,</span> <span class="n">attributes</span>
+<span class="kn">from</span> <span class="nn">numpy.linalg</span> <span class="kn">import</span> <span class="n">norm</span>
+
+
+<span class="kn">from</span> <span class="nn">mgng.helpers</span> <span class="kn">import</span> <span class="n">get_dymmy_2D_data</span>
+<span class="kn">from</span> <span class="nn">mgng.validators</span> <span class="kn">import</span> <span class="n">is_greater_zero</span><span class="p">,</span> <span class="n">is_weight_factor</span><span class="p">,</span> <span class="n">repr_ndarray</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<div class="viewcode-block" id="MergeGNG"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG">[docs]</a><span class="nd">@attributes</span>
+<span class="k">class</span> <span class="nc">MergeGNG</span><span class="p">:</span>
+    <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class that represents a Merge Growing Neural Gas.</span>
+
+<span class="sd">    Differences to default implementation</span>
+
+<span class="sd">    * Neurons all kept in memory to allow numpy operations</span>
+<span class="sd">    * Introduce half life and threshold for connections (planned). For now, only decrease.</span>
+<span class="sd">    * Adaptation rate should depend on connection strength</span>
+<span class="sd">    * Introduce method (half-life?, decay on all synapses) to remove very old movements (I am sure that the original implementation allows for orphans)</span>
+<span class="sd">    * Compare with an approach of a regular neural gas with a refactory time</span>
+<span class="sd">    * Add threshold for an activity to trigger a new neuron (hey, make a fifo). I really want to enforce this. If a neuron gets activated 3 times in a row it&#39;s tiem for a new neuron!</span>
+<span class="sd">    * REALLY CONSIDER REMOVING THE DIOGONAL ELEMENTS! Implement neighbor learn rate .. maybe weighted by synapse strength</span>
+<span class="sd">    * Activity is never 0 unless it is a never used neuron or one removed because it had no connections</span>
+
+<span class="sd">    * Todo: did we remove neurons without connections?</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n_neurons: int</span>
+<span class="sd">        Max. number of neurons</span>
+<span class="sd">    n_dim: int</span>
+<span class="sd">        Output dimension (of the feature space).</span>
+<span class="sd">    connection_decay: float</span>
+<span class="sd">        Hyper parameter for influencing the decay of neuron connections. NOT USED RIGHT NOW</span>
+<span class="sd">    temporal_influence: float</span>
+<span class="sd">        The influence of the temporal memory on finding the winning neuron</span>
+<span class="sd">    memory_weight: float</span>
+<span class="sd">        Determines the influence of past samples in the sequence. (Kinda &quot;how long&quot; it looks back into the past).</span>
+<span class="sd">    life_span: int</span>
+<span class="sd">        How many iterations until a synapse is deleted.</span>
+<span class="sd">        Note .. synapses of the winning neuron only are decayed (it forgets &quot;wrong&quot; neighbors)</span>
+<span class="sd">    max_activity:</span>
+<span class="sd">        Maximal activity allowed for a neuron (cf. refractory period). If a neuron is more active than this threshold,</span>
+<span class="sd">        a new neuron is inserted between it and the second most active neuron. Note that each time the neuron is the</span>
+<span class="sd">        winning neuron, it&#39;s activity level is increased by 1.0 and then continuously decreases continuously in</span>
+<span class="sd">        each iteration (c.f. `decrease_activity`)</span>
+<span class="sd">        This is different to the reference paper where the network gros in regular intervals.</span>
+<span class="sd">        Our approach reflects a more &quot;on demand&quot; approach and prevents the network from growing unnecessarily.</span>
+<span class="sd">    decrease_activity: float</span>
+<span class="sd">        Less important .. the activity decreases exponentially ... only interesting if there are only few iterations</span>
+<span class="sd">        between reccuring sequences</span>
+
+<span class="sd">    learn_rate: float</span>
+<span class="sd">        lorem ipsum</span>
+<span class="sd">    learn_rate_neighbors: float</span>
+<span class="sd">        lorem ipsum</span>
+<span class="sd">    delta: float</span>
+<span class="sd">        Need a better name, right? It&#39;s a parameter that decides the neuron&#39;s activity if a new neuron is added.</span>
+<span class="sd">    allow_removal: float</span>
+<span class="sd">        lorem ipsum</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    _weights: np.ndarray, :math:`n_{\text{neurons}} \times n_{\text{dim}}`</span>
+<span class="sd">        The amount of neurons is constant in this implementation for simplicity</span>
+<span class="sd">        reasons and speed (block operations).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># FIXME: Until pylint + attrs work nicely together (or pylint and typehints)</span>
+    <span class="c1"># pylint: disable=unsubscriptable-object,unsupported-assignment-operation,no-member</span>
+
+    <span class="c1"># Note that comment type hints are used to ensure Python 3.5 support _and_ VSCode autocomplete</span>
+    <span class="c1"># See https://www.attrs.org/en/stable/types.html#mypy</span>
+
+    <span class="n">n_neurons</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>  <span class="c1"># type: int</span>
+    <span class="n">n_dim</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># type: int</span>
+    <span class="n">connection_decay</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">temporal_influence</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">memory_weight</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">life_span</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>  <span class="c1"># type: int</span>
+    <span class="n">learn_rate</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">learn_rate_neighbors</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">decrease_activity</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="c1"># TODO find a goood name for delta (in fact, update all names)</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_weight_factor</span><span class="p">])</span>  <span class="c1"># type: float</span>
+
+    <span class="n">max_activity</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">validator</span><span class="o">=</span><span class="p">[</span><span class="n">is_greater_zero</span><span class="p">])</span>  <span class="c1"># type: float</span>
+    <span class="n">allow_removal</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: bool</span>
+
+    <span class="c1"># I don&#39;t want this parameter truth to be told</span>
+    <span class="n">creation_frequency</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># type: int</span>
+
+    <span class="c1"># Private variables. Default initializers depend on n_neurons and n_dim. The order matters!</span>
+    <span class="n">_weights</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="n">repr_ndarray</span><span class="p">)</span>  <span class="c1"># type: np.ndarray</span>
+    <span class="n">_context</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="n">repr_ndarray</span><span class="p">)</span>  <span class="c1"># type: np.ndarray</span>
+    <span class="n">_connections</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="n">repr_ndarray</span><span class="p">)</span>  <span class="c1"># type: np.ndarray</span>
+    <span class="n">_counter</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># type: np.ndarray</span>
+    <span class="n">_global_context</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="n">repr_ndarray</span><span class="p">)</span>  <span class="c1"># type: np.ndarray</span>
+
+    <span class="n">debug</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># type: bool</span>
+    <span class="n">past</span> <span class="o">=</span> <span class="n">attrib</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># type: List[List[np.ndarray]]</span>
+
+<div class="viewcode-block" id="MergeGNG._default_weights"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._default_weights">[docs]</a>    <span class="nd">@_weights</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_default_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_dim</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG._default_context"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._default_context">[docs]</a>    <span class="nd">@_context</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_default_context</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_dim</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG._default_global_context"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._default_global_context">[docs]</a>    <span class="nd">@_global_context</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_default_global_context</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_dim</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG._default_connections"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._default_connections">[docs]</a>    <span class="nd">@_connections</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_default_connections</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># XXX: we keep all neurons in memory such that we can do block operations</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="MergeGNG._default_counter"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._default_counter">[docs]</a>    <span class="nd">@_counter</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">def</span> <span class="nf">_default_counter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_neurons</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG._decay"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG._decay">[docs]</a>    <span class="k">def</span> <span class="nf">_decay</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">first</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Decrease all synapses of a neuron but don&#39;t allow negative synampses.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        first : int</span>
+<span class="sd">            Index of the neuron</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">decay_vector</span><span class="p">(</span><span class="n">vector</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">vector</span> <span class="o">-=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">life_span</span>
+            <span class="n">vector</span><span class="p">[</span><span class="n">vector</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Decaying connections before:</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span>
+        <span class="n">decay_vector</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="n">decay_vector</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[:,</span> <span class="n">first</span><span class="p">])</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;after </span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG.kill_orphans"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.kill_orphans">[docs]</a>    <span class="k">def</span> <span class="nf">kill_orphans</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># argwhere not suitable for indexing</span>
+
+        <span class="n">orphans</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Orphans: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">orphans</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;counter before: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">orphans</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;counter after: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MergeGNG.adapt"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.adapt">[docs]</a>    <span class="k">def</span> <span class="nf">adapt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Single adaptation step</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sample : np.ndarray, shape: :math:`(n_{\text{dim}},)`</span>
+<span class="sd">            A single sample.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Tuple[int,int]</span>
+<span class="sd">            Optionally returns the first and second winning</span>
+<span class="sd">            neurons used for Hebbian learning.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">past</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">get_active_weights</span><span class="p">()</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                    <span class="n">sample</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="n">dist_weights</span> <span class="o">=</span> <span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_weights</span> <span class="o">-</span> <span class="n">sample</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">dist_context</span> <span class="o">=</span> <span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_context</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_global_context</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;|weights| = </span><span class="si">%s</span><span class="s2">, |context| = </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">dist_weights</span><span class="p">,</span> <span class="n">dist_context</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;connections at beginning:</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span>
+
+        <span class="c1"># Todo remove this variable</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">temporal_influence</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="n">dist_weights</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">temporal_influence</span> <span class="o">*</span> <span class="n">dist_context</span>
+
+        <span class="n">winners</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span>
+            <span class="n">distance</span>
+            <span class="c1"># (1 - self.temporal_influence) * dist_weights + self.temporal_influence * dist_context</span>
+        <span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;winners </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">winners</span><span class="p">,</span> <span class="n">distance</span><span class="p">[</span><span class="n">winners</span><span class="p">])</span>
+
+        <span class="n">first</span> <span class="o">=</span> <span class="n">winners</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">second</span> <span class="o">=</span> <span class="n">winners</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">assert</span> <span class="n">distance</span><span class="p">[</span><span class="n">first</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">distance</span><span class="p">[</span><span class="n">second</span><span class="p">]</span>
+
+        <span class="n">old_global_context</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_global_context</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># fmt: off</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_context</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">memory_weight</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:]</span>
+                <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">memory_weight</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="p">)</span>
+        <span class="c1"># fmt: on</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_decay</span><span class="p">(</span><span class="n">first</span><span class="p">)</span>  <span class="c1"># Let&#39;s decay first so that the new new connection has maximal value</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Adding edge to:</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span>
+
+        <span class="c1"># Symmetric connection matrix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">second</span><span class="p">,</span> <span class="n">first</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="c1"># Diagonal only needed when the connection values are used in the update rule below.</span>
+        <span class="c1"># then it should probably not be 1.0</span>
+        <span class="c1"># self._connections[first, first] = 1.0</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;after</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span>
+
+        <span class="c1"># Needs to be after new connections are created. otherwise the counter of first might be reset</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kill_orphans</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">learn_rate</span> <span class="o">*</span> <span class="p">(</span><span class="n">sample</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">learn_rate</span> <span class="o">*</span> <span class="p">(</span><span class="n">old_global_context</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="n">neighbors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="p">:])</span>  <span class="c1"># == non-zeros in the row</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;winning neuron&#39;s neighbors </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">neighbors</span><span class="p">)</span>
+
+        <span class="c1"># Suggestion: weight adaptation by age of synapse</span>
+        <span class="c1"># self._weights[neighbors, :] += self.learn_rate * self._connections[first, neighbors] *\</span>
+        <span class="c1"># (sample - self._weights[neighbors, :])</span>
+        <span class="c1"># self._context[neighbors, :] += self.learn_rate * self._connections[first, neighbors] *\</span>
+        <span class="c1">#  (old_global_context - self._context[neighbors, :])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">neighbors</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">learn_rate_neighbors</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">sample</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">neighbors</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">neighbors</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">learn_rate_neighbors</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">old_global_context</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">neighbors</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">first</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;New counter: </span><span class="si">%s</span><span class="s2">, </span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">first</span><span class="p">,</span> <span class="n">second</span></div>
+
+<div class="viewcode-block" id="MergeGNG.grow"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.grow">[docs]</a>    <span class="k">def</span> <span class="nf">grow</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Entropy maximization by adding neurons in regions of high activity.</span>
+
+<span class="sd">        Note: this picks the weakest neuron. TODO this needs to be implemented too!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Warning .. error when the max neuron does not have neighbors (pretty much impossible)</span>
+
+        <span class="n">most</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">)</span>
+        <span class="n">its_neighbors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">most</span><span class="p">,</span> <span class="p">:])</span>  <span class="c1"># e.g., (array([0, 2]),)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">its_neighbors</span><span class="p">)</span>
+        <span class="n">most_active_neighbors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">its_neighbors</span><span class="p">]</span>
+        <span class="p">)</span>  <span class="c1"># get the activations and sort them</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">most_active_neighbors</span><span class="p">)</span>
+        <span class="c1"># The last entry is the winning neuron itself (WATCH OUT unless the diagonal is zero!, in that case, use -1)</span>
+        <span class="n">neighbor</span> <span class="o">=</span> <span class="n">its_neighbors</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">most_active_neighbors</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">&quot;Most active: </span><span class="si">%d</span><span class="se">\n</span><span class="s2">Its neighbors: </span><span class="si">%s</span><span class="s2">, Its most active neighbor: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">most</span><span class="p">,</span>
+            <span class="n">its_neighbors</span><span class="p">,</span>
+            <span class="n">neighbor</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kill_weakest</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">delta</span> <span class="o">=</span> <span class="mf">0.8</span>  <span class="c1"># Yet another parameter :-(</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">new</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">most</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">neighbor</span><span class="p">,</span> <span class="p">:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">new</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">most</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_context</span><span class="p">[</span><span class="n">neighbor</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">new</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">most</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">neighbor</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">most</span><span class="p">]</span> <span class="o">*=</span> <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">neighbor</span><span class="p">]</span> <span class="o">*=</span> <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">delta</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">most</span><span class="p">,</span> <span class="n">neighbor</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">neighbor</span><span class="p">,</span> <span class="n">most</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">new</span><span class="p">,</span> <span class="n">neighbor</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">neighbor</span><span class="p">,</span> <span class="n">new</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">most</span><span class="p">,</span> <span class="n">new</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">new</span><span class="p">,</span> <span class="n">most</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span></div>
+
+<div class="viewcode-block" id="MergeGNG.kill_weakest"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.kill_weakest">[docs]</a>    <span class="k">def</span> <span class="nf">kill_weakest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">signedinteger</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finds the weakest neuron (or the first with zero activity in the list)</span>
+<span class="sd">        and returns its index</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        int</span>
+<span class="sd">            Index of the neuron</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">least</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">)</span>  <span class="c1"># That is a good metric? Probably yes</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Least active neuron: </span><span class="si">%d</span><span class="s2">, value: </span><span class="si">%f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">least</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">least</span><span class="p">])</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Did it have conntections?</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">least</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">least</span><span class="p">,</span> <span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Killing existing neuron. Consider larger pool! Activity: </span><span class="si">%f</span><span class="s2">&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">[</span><span class="n">least</span><span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Remove connections:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[</span><span class="n">least</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connections</span><span class="p">[:,</span> <span class="n">least</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">return</span> <span class="n">least</span></div>
+
+<div class="viewcode-block" id="MergeGNG.learn"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.learn">[docs]</a>    <span class="k">def</span> <span class="nf">learn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">epochs</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Batch learning</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples : np.ndarray</span>
+<span class="sd">            Row array of points. Shape :math:`n_{\text{samples}} \times n_{\text{dim}}`.</span>
+<span class="sd">        epochs : int</span>
+<span class="sd">            Number of repetitions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">assert</span> <span class="n">samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_dim</span>
+
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">epochs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sample</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n\n</span><span class="si">%s</span><span class="se">\n</span><span class="s2">Sample: </span><span class="si">%d</span><span class="s2">, Epoch: </span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span> <span class="o">*</span> <span class="mi">24</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">adapt</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">decrease_activity</span>
+
+                <span class="k">if</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_activity</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">grow</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">i</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">creation_frequency</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">creation_frequency</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="c1"># Make this a factor depending on the activity of neurons</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">grow</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="MergeGNG.get_active_weights"><a class="viewcode-back" href="../../api/mgng.mgng.html#mgng.mgng.MergeGNG.get_active_weights">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># Watchout there is an argwhere not an nonzero</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span> <span class="p">:],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_counter</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">),</span> <span class="p">:],</span>
+        <span class="p">)</span></div></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>  <span class="c1"># type: ignore</span>
+
+    <span class="n">mgng</span> <span class="o">=</span> <span class="n">MergeGNG</span><span class="p">(</span><span class="n">connection_decay</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">mgng</span><span class="p">)</span>
+
+    <span class="n">a</span> <span class="o">=</span> <span class="n">mgng</span><span class="o">.</span><span class="n">n_neurons</span>
+
+    <span class="n">X</span> <span class="o">=</span> <span class="n">get_dymmy_2D_data</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">repr_ndarray</span><span class="p">(</span><span class="n">X</span><span class="p">))</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">X</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">mgng</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../merge_growing_neural_gas.html">The Growing Neural Gas and Merge Growing Neural Gas Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">mgng</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Stefan Ulbrich.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.0.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

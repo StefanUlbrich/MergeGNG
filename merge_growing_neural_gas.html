@@ -1,0 +1,264 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>The Growing Neural Gas and Merge Growing Neural Gas Algorithms &#8212; mgng 0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mgng" href="api/modules.html" />
+    <link rel="prev" title="About" href="about.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="the-growing-neural-gas-and-merge-growing-neural-gas-algorithms">
+<h1>The Growing Neural Gas and Merge Growing Neural Gas Algorithms<a class="headerlink" href="#the-growing-neural-gas-and-merge-growing-neural-gas-algorithms" title="Permalink to this headline">¶</a></h1>
+<p><a class="reference external" href="https://papers.nips.cc/paper/893-a-growing-neural-gas-network-learns-topologies.pdf">Growing Neural Gas
+(NGN)</a>
+is a <a class="reference external" href="http://neupy.com/2018/03/26/making_art_with_growing_neural_gas.html">topology preserving (see this blog for a
+demonstration)</a>
+or <a class="reference external" href="http://neupy.com/2018/03/26/making_art_with_growing_neural_gas.html#id1">this
+explaination</a>)
+extension to the <a href="#id1"><span class="problematic" id="id2">`Neural gas (NG) &lt;&gt;`__</span></a> approach is usefull for learning
+when an underlying topology is not known (as in the case of the
+<a href="#id1"><span class="problematic" id="id3">`Self-organizing maps (SOM) &lt;&gt;`__</span></a> algorithm). When it comes to time
+series data (such as trajectories), an extension to the neural gas
+algorithm has been approached (<em>Merge Neural Gas (MNG)</em>) and a
+combination with the GNG leads to the <a class="reference external" href="https://ias.in.tum.de/_media/spezial/bib/andreakis09wsom.pdf">Merge growing neural gas
+(MNGN)</a>
+approach. It adds a context memory to the neurons of the NGN and is
+useful for <em>recognising</em> temporal sequences and with a single weighting
+parameter, can be reduced to a regular NGN for which an implementation
+<a class="reference external" href="https://github.com/itdxer/neupy/blob/master/notebooks/growing-neural-gas/Making%20Art%20with%20Growing%20Neural%20Gas.ipynb">is
+available</a>.</p>
+<p>This notebook allows experimenting with the (M)NGN algorithms on our own
+vanilla <a class="reference external" href="https://numpy.org/">numpy</a> implementation (which can be
+executed on the GPU with <a class="reference external" href="https://cupy.chainer.org/">Cupy</a>). The
+package uses modern python tools such as
+<a class="reference external" href="https://python-poetry.org/">poetry</a>,
+<a class="reference external" href="https://www.attrs.org/en/stable/">attrs</a> (a focus has been laid on
+those two for this release), and sphinx and mypy/pylint/black for
+documentation and coding standards.</p>
+<p>At first, let us import the necessary modules and set up loggin (aka.
+boilerplate code)</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">neurovision.mgng.mgng</span> <span class="kn">import</span> <span class="n">MergedGNG</span><span class="p">,</span> <span class="n">lemniscate</span><span class="p">,</span> <span class="n">get_dymmy_2D_data</span><span class="p">,</span> <span class="n">repr_ndarray</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">import</span> <span class="nn">ipywidgets</span> <span class="k">as</span> <span class="nn">widgets</span>
+<span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">interactive</span><span class="p">,</span> <span class="n">Layout</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">,</span>
+                    <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%(name)s</span><span class="s1"> {</span><span class="si">%(filename)s</span><span class="s1">:</span><span class="si">%(funcName)s</span><span class="s1">:</span><span class="si">%(lineno)d</span><span class="s1">} </span><span class="si">%(levelname)s</span><span class="s1"> - </span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">,</span>
+<span class="c1">#                     format=&#39;%(name)s [%(asctime)s] {%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s&#39;,</span>
+<span class="c1">#                     format=&#39;{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s&#39;,</span>
+                    <span class="n">datefmt</span><span class="o">=</span><span class="s1">&#39;%m-</span><span class="si">%d</span><span class="s1"> %H:%M&#39;</span><span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">&quot;jupyter&quot;</span><span class="p">)</span>
+<span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
+
+<span class="o">%</span><span class="k">matplotlib</span> inline
+</pre></div>
+</div>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">show_topology</span><span class="p">(</span><span class="n">mgng</span><span class="p">:</span> <span class="n">MergedGNG</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mgng</span><span class="o">.</span><span class="n">_connections</span><span class="p">):</span>
+            <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="c1"># print(ind)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ind</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">mgng</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">mgng</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">n</span><span class="p">,</span><span class="mi">0</span><span class="p">]],</span> <span class="p">[</span><span class="n">mgng</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span><span class="n">mgng</span><span class="o">.</span><span class="n">_weights</span><span class="p">[</span><span class="n">n</span><span class="p">,</span><span class="mi">1</span><span class="p">]],</span> <span class="s1">&#39;-y&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="interactive-playground">
+<h2>Interactive playground<a class="headerlink" href="#interactive-playground" title="Permalink to this headline">¶</a></h2>
+<p>Use the following cell to interactively test on a data set
+(parameterized and rotated <a class="reference external" href="https://en.wikipedia.org/wiki/Lemniscate_of_Bernoulli">Bernoulli
+lemniscate</a>):</p>
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">mgng</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;neurovision.mgng.mgng&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">learn</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">noise</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">repeats</span><span class="p">,</span><span class="n">samples</span><span class="p">,</span>
+      <span class="n">n_neurons</span><span class="p">,</span> <span class="n">connection_decay</span><span class="p">,</span>
+      <span class="n">temporal_influence</span><span class="p">,</span>
+      <span class="n">memory_weight</span><span class="p">,</span>
+      <span class="n">life_span</span><span class="p">,</span>
+      <span class="n">learn_rate</span><span class="p">,</span><span class="n">learn_rate_neighbors</span><span class="p">,</span>
+      <span class="n">decrease_activity</span><span class="p">,</span>
+      <span class="n">delta</span><span class="p">,</span> <span class="n">max_activity</span><span class="p">,</span> <span class="n">epochs</span><span class="p">,</span> <span class="n">creation_frequency</span><span class="p">):</span>
+
+    <span class="n">std</span> <span class="o">=</span> <span class="mf">0.0</span> <span class="k">if</span> <span class="n">noise</span> <span class="o">==</span> <span class="s1">&#39;Clean&#39;</span> <span class="k">else</span> <span class="mf">1.0</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">std</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">data</span><span class="o">==</span><span class="s1">&#39;Single&#39;</span><span class="p">:</span>
+        <span class="n">X</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">lemniscate</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">repeats</span><span class="p">)</span><span class="o">*</span><span class="n">std</span> <span class="o">+</span> <span class="mi">10</span><span class="p">]</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">X</span> <span class="o">=</span> <span class="n">get_dymmy_2D_data</span><span class="p">(</span><span class="n">repeats</span><span class="p">,</span> <span class="n">std</span><span class="p">,</span> <span class="n">samples</span><span class="p">)</span>
+
+    <span class="k">global</span> <span class="n">mgng</span>
+
+    <span class="k">if</span> <span class="n">type_</span> <span class="o">==</span> <span class="s1">&#39;MGNG&#39;</span><span class="p">:</span>
+        <span class="n">mgng</span> <span class="o">=</span> <span class="n">MergedGNG</span><span class="p">(</span>
+            <span class="n">n_neurons</span><span class="o">=</span><span class="n">n_neurons</span><span class="p">,</span>
+            <span class="n">n_dim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+            <span class="n">connection_decay</span><span class="o">=</span><span class="n">connection_decay</span><span class="p">,</span>
+            <span class="n">temporal_influence</span><span class="o">=</span><span class="n">temporal_influence</span><span class="p">,</span>
+            <span class="n">memory_weight</span><span class="o">=</span><span class="n">memory_weight</span><span class="p">,</span>
+            <span class="n">life_span</span><span class="o">=</span><span class="n">life_span</span><span class="p">,</span>
+            <span class="n">learn_rate</span><span class="o">=</span><span class="n">learn_rate</span><span class="p">,</span>
+            <span class="n">learn_rate_neighbors</span><span class="o">=</span><span class="n">learn_rate_neighbors</span><span class="p">,</span>
+            <span class="n">decrease_activity</span><span class="o">=</span><span class="n">decrease_activity</span><span class="p">,</span>
+            <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">,</span>
+            <span class="n">max_activity</span><span class="o">=</span><span class="n">max_activity</span><span class="p">,</span>
+            <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">creation_frequency</span><span class="o">=</span><span class="n">creation_frequency</span>
+
+        <span class="p">)</span>
+
+        <span class="n">mgng</span><span class="o">.</span><span class="n">learn</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">T</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">Y</span><span class="p">,</span><span class="n">Z</span> <span class="o">=</span> <span class="n">mgng</span><span class="o">.</span><span class="n">get_active_weights</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">Y</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">Y</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;*g&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">Z</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">Z</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="s1">&#39;*r&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mgng</span><span class="o">.</span><span class="n">_weights</span><span class="p">,</span> <span class="n">mgng</span><span class="o">.</span><span class="n">_context</span><span class="p">):</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]],[</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span><span class="s1">&#39;-k&#39;</span><span class="p">)</span>
+        <span class="n">show_topology</span><span class="p">(</span><span class="n">mgng</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">target</span><span class="o">==</span><span class="s1">&#39;Show&#39;</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">X</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">X</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="n">display</span><span class="p">(</span><span class="s2">&quot;Learned network stored to variable `mgng`&quot;</span><span class="p">)</span>
+
+
+
+<span class="n">interactive_plot</span> <span class="o">=</span> <span class="n">interactive</span><span class="p">(</span>
+    <span class="n">learn</span><span class="p">,</span>
+    <span class="n">type_</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;None&#39;</span><span class="p">,</span><span class="s1">&#39;MGNG&#39;</span><span class="p">,</span><span class="s1">&#39;GNG&#39;</span><span class="p">],</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Single&#39;</span><span class="p">,</span><span class="s1">&#39;Double&#39;</span><span class="p">],</span>
+    <span class="n">noise</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Clean&#39;</span><span class="p">,</span> <span class="s1">&#39;Noisy&#39;</span><span class="p">],</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Show&#39;</span><span class="p">,</span><span class="s1">&#39;Hide&#39;</span><span class="p">],</span>
+    <span class="n">repeats</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">50</span><span class="p">),</span>
+    <span class="n">samples</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">250</span><span class="p">,</span><span class="mi">10</span><span class="p">),</span>
+    <span class="n">n_neurons</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span><span class="mi">1000</span><span class="p">),</span>
+    <span class="n">connection_decay</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">),</span>
+    <span class="n">temporal_influence</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">),</span>
+    <span class="n">memory_weight</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">),</span>
+    <span class="n">life_span</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">50</span><span class="p">),</span>
+    <span class="n">learn_rate</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">),</span>
+    <span class="n">learn_rate_neighbors</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">0.8</span><span class="p">),</span>
+    <span class="n">decrease_activity</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">0.01</span><span class="p">),</span>
+    <span class="n">delta</span><span class="o">=</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span><span class="mf">1.0</span><span class="p">),</span>
+    <span class="n">max_activity</span><span class="o">=</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span><span class="mf">3.0</span><span class="p">),</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">),</span>
+    <span class="n">creation_frequency</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="c1"># output = interactive_plot.children[-1]</span>
+<span class="c1"># output.layout.height = &#39;350px&#39;</span>
+<span class="n">display</span><span class="p">(</span><span class="n">interactive_plot</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="_images/interactive.png"><img alt="Alternative text" src="_images/interactive.png" style="width: 400px;" /></a>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">mgng</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">The Growing Neural Gas and Merge Growing Neural Gas Algorithms</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#interactive-playground">Interactive playground</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api/modules.html">mgng</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="about.html" title="previous chapter">About</a></li>
+      <li>Next: <a href="api/modules.html" title="next chapter">mgng</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Stefan Ulbrich.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.0.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/merge_growing_neural_gas.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
