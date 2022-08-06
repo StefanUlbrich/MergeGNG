@@ -2,7 +2,7 @@
 
 An experimental implementation of the Merge Growing Neural Gas algorithm.
 The project turned into an exercise for using state-of-the-art python tools.
-This project has been created with my [cookiecutter for science projects](https://bitbucket.org/StefanUlbrich/science-cookiecutter/admin)
+This project has been created with my [cookiecutter for science projects](https://bitbucket.org/StefanUlbrich/science-cookiecutter/src/master/)
 
 ## The Growing Neural Gas and Merge Growing Neural Gas Algorithms
 
