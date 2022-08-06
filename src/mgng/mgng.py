@@ -6,10 +6,9 @@ Implementation of the Merged Growing Neural Gas for temporal data.
 __author__ = "Stefan Ulbrich"
 __copyright__ = "Copyright 2020, All rights reserved."
 # __credits__ = []
-__license__ = "Confidential"
+__license__ = "MIT"
 __version__ = "0.1"
 __maintainer__ = "Stefan Ulbrich"
-__email__ = "Stefan.Ulbrich@gmail.com"
 __status__ = "alpha"
 __date__ = "2020-01-27"
 __all__ = ["MergeGNG"]
@@ -21,11 +20,11 @@ import numpy as np
 from attr import attrib, attributes
 from numpy.linalg import norm
 
-
 from mgng.helpers import get_dymmy_2D_data
 from mgng.validators import is_greater_zero, is_weight_factor, repr_ndarray
 
 logger = logging.getLogger(__name__)
+
 
 @attributes
 class MergeGNG:
@@ -124,7 +123,6 @@ class MergeGNG:
 
     @_weights.default
     def _default_weights(self):
-        self.n_neurons
         return np.random.rand(self.n_neurons, self.n_dim)
 
     @_context.default
