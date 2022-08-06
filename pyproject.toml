@@ -17,7 +17,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.7"
 numpy = "^1.18.1"
-attrs = "^21.2.0"
+attrs = "^22.1.0"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "^5.1.4"

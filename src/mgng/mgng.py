@@ -14,11 +14,13 @@ __date__ = "2020-01-27"
 __all__ = ["MergeGNG"]
 
 import logging
+from tkinter.tix import Tree
 from typing import List, Tuple
 
 import numpy as np
-from attr import attrib, attributes
+from attr import define, field
 from numpy.linalg import norm
+from numpy.typing import NDArray
 
 from mgng.helpers import get_dymmy_2D_data
 from mgng.validators import is_greater_zero, is_weight_factor, repr_ndarray
@@ -26,7 +28,7 @@ from mgng.validators import is_greater_zero, is_weight_factor, repr_ndarray
 logger = logging.getLogger(__name__)
 
 
-@attributes
+@define
 class MergeGNG:
     r"""
     Class that represents a Merge Growing Neural Gas.
@@ -93,33 +95,33 @@ class MergeGNG:
     # Note that comment type hints are used to ensure Python 3.5 support _and_ VSCode autocomplete
     # See https://www.attrs.org/en/stable/types.html#mypy
 
-    n_neurons = attrib(default=100)  # type: int
-    n_dim = attrib(default=3)  # type: int
-    connection_decay = attrib(default=0.1, validator=[is_weight_factor])  # type: float
-    temporal_influence = attrib(default=0.5, validator=[is_weight_factor])  # type: float
-    memory_weight = attrib(default=0.5, validator=[is_weight_factor])  # type: float
-    life_span = attrib(default=10)  # type: int
-    learn_rate = attrib(default=0.2, validator=[is_weight_factor])  # type: float
-    learn_rate_neighbors = attrib(default=0.2, validator=[is_weight_factor])  # type: float
-    decrease_activity = attrib(default=0.8, validator=[is_weight_factor])  # type: float
+    n_neurons: int = 100
+    n_dim : int = 3
+    connection_decay: float = 0.1
+    temporal_influence: float = field(default=0.5, validator=[is_weight_factor])
+    memory_weight: float  = field(default=0.5, validator=[is_weight_factor])
+    life_span: int = 10
+    learn_rate: float = field(default=0.2, validator=[is_weight_factor])
+    learn_rate_neighbors: float = field(default=0.2, validator=[is_weight_factor])
+    decrease_activity: float = field(default=0.8, validator=[is_weight_factor])
     # TODO find a goood name for delta (in fact, update all names)
-    delta = attrib(default=0.8, validator=[is_weight_factor])  # type: float
+    delta: float = field(default=0.8, validator=[is_weight_factor])
 
-    max_activity = attrib(default=2.0, validator=[is_greater_zero])  # type: float
-    allow_removal = attrib(default=True)  # type: bool
+    max_activity: float = field(default=2.0, validator=[is_greater_zero])
+    allow_removal: bool = True
 
     # I don't want this parameter truth to be told
-    creation_frequency = attrib(default=5)  # type: int
+    creation_frequency: int =5
 
     # Private variables. Default initializers depend on n_neurons and n_dim. The order matters!
-    _weights = attrib(init=False, repr=repr_ndarray)  # type: np.ndarray
-    _context = attrib(init=False, repr=repr_ndarray)  # type: np.ndarray
-    _connections = attrib(init=False, repr=repr_ndarray)  # type: np.ndarray
-    _counter = attrib(init=False, repr=False)  # type: np.ndarray
-    _global_context = attrib(init=False, repr=repr_ndarray)  # type: np.ndarray
+    _weights: NDArray = field(init=False, repr=repr_ndarray)
+    _context: NDArray = field(init=False, repr=repr_ndarray)
+    _connections: NDArray = field(init=False, repr=repr_ndarray)
+    _counter: NDArray = field(init=False, repr=False)
+    _global_context: NDArray = field(init=False, repr=repr_ndarray)
 
-    debug = attrib(default=False)  # type: bool
-    past = attrib(init=False, factory=list, repr=False)  # type: List[List[np.ndarray]]
+    debug: bool = False
+    past: List[List[NDArray]] = field(init=False, factory=list, repr=False)
 
     @_weights.default
     def _default_weights(self):
