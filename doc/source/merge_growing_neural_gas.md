@@ -93,7 +93,7 @@ def learn(type_, data, noise, target, repeats,samples,
             [lemniscate(0, x, samples) for x in np.random.randn(repeats)*std + 10]
         )
     else:
-        X = get_dymmy_2D_data(repeats, std, samples)
+        X = get_dymmy_2D_data(repeats, samples, std)
 
     global mgng
 

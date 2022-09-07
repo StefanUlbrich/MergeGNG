@@ -13,13 +13,15 @@ __status__ = "alpha"
 __date__ = "2020-01-27"
 
 import logging
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
 
-def lemniscate(rotation: float = 0.0, alpha: float = 1.0, num: int = 1000) -> np.ndarray:
+def lemniscate(rotation: float = 0.0, alpha: float = 1.0, num: int = 1000) -> NDArray[np.floating[Any]]:
     """
     Sample a Bernoulli lemniscate.
 
@@ -43,8 +45,8 @@ def lemniscate(rotation: float = 0.0, alpha: float = 1.0, num: int = 1000) -> np
 
     t = np.linspace(0.5 * np.pi, 2.5 * np.pi, num=num)
 
-    c, s = np.cos(rotation), np.sin(rotation)
-    R = np.array(((c, -s), (s, c)))
+    cos, sin = np.cos(rotation), np.sin(rotation)
+    rotation_matrix = np.array(((cos, -sin), (sin, cos)))
 
     values = np.array(
         (
@@ -53,15 +55,35 @@ def lemniscate(rotation: float = 0.0, alpha: float = 1.0, num: int = 1000) -> np
         )
     )
 
-    return R @ values
+    return rotation_matrix @ values
 
 
-def get_dymmy_2D_data(n: int, std: float = 1.0, num: int = 1000) -> np.ndarray:
+def get_dymmy_2d_data(
+    n_repeats: int, n_samples: int = 1000, std: float = 1.0, mean: float = 10.0
+) -> NDArray[np.floating[Any]]:
     """
-    Create dummy 2-D data from overlapping lemniscates.
-    """
+    _summary_
 
+    _extended_summary_
+
+    Parameters
+    ----------
+    n_repeats : int
+        Number of different random :func:`lemniscate` to sample from.
+    n_samples : int
+        Number of samples from each :func:`lemniscate`, by default 1000
+    std : float, optional
+        Standard deviation of the :math:`alpha` parameter, by default 1.0
+    mean : float, optional
+        Mean of the :math:`alpha` parameter, by default 10.0
+
+    Returns
+    -------
+    np.ndarray
+        ``n_repeats`` * ``n_samples`` samples (in the colums).
+    """
+    # Create dummy 2-D data from overlapping lemniscates.
     return np.hstack(
-        [lemniscate(0, x, num) for x in np.random.randn(n) * std + 10]
-        + [lemniscate(np.pi / 2, x, num) for x in np.random.randn(n) * std + 10]
+        [lemniscate(0, x, n_samples) for x in np.random.randn(n_repeats) * std + mean]  # type: ignore
+        + [lemniscate(np.pi / 2, x, n_samples) for x in np.random.randn(n_repeats) * std + mean]  # type: ignore
     )

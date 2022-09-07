@@ -14,15 +14,14 @@ __date__ = "2020-01-27"
 __all__ = ["MergeGNG"]
 
 import logging
-from tkinter.tix import Tree
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import numpy as np
 from attr import define, field
 from numpy.linalg import norm
 from numpy.typing import NDArray
 
-from mgng.helpers import get_dymmy_2D_data
+from mgng.helpers import get_dymmy_2d_data
 from mgng.validators import is_greater_zero, is_weight_factor, repr_ndarray
 
 logger = logging.getLogger(__name__)
@@ -38,10 +37,13 @@ class MergeGNG:
     * Neurons all kept in memory to allow numpy operations
     * Introduce half life and threshold for connections (planned). For now, only decrease.
     * Adaptation rate should depend on connection strength
-    * Introduce method (half-life?, decay on all synapses) to remove very old movements (I am sure that the original implementation allows for orphans)
+    * Introduce method (half-life?, decay on all synapses) to remove very old movements (I am sure that the original
+      implementation allows for orphans)
     * Compare with an approach of a regular neural gas with a refactory time
-    * Add threshold for an activity to trigger a new neuron (hey, make a fifo). I really want to enforce this. If a neuron gets activated 3 times in a row it's tiem for a new neuron!
-    * REALLY CONSIDER REMOVING THE DIOGONAL ELEMENTS! Implement neighbor learn rate .. maybe weighted by synapse strength
+    * Add threshold for an activity to trigger a new neuron (hey, make a fifo). I really want to enforce this. If a
+      neuron gets activated 3 times in a row it's tiem for a new neuron!
+    * REALLY CONSIDER REMOVING THE DIOGONAL ELEMENTS! Implement neighbor learn rate ..
+      maybe weighted by synapse strength
     * Activity is never 0 unless it is a never used neuron or one removed because it had no connections
 
     * Todo: did we remove neurons without connections?
@@ -96,10 +98,10 @@ class MergeGNG:
     # See https://www.attrs.org/en/stable/types.html#mypy
 
     n_neurons: int = 100
-    n_dim : int = 3
+    n_dim: int = 3
     connection_decay: float = 0.1
     temporal_influence: float = field(default=0.5, validator=[is_weight_factor])
-    memory_weight: float  = field(default=0.5, validator=[is_weight_factor])
+    memory_weight: float = field(default=0.5, validator=[is_weight_factor])
     life_span: int = 10
     learn_rate: float = field(default=0.2, validator=[is_weight_factor])
     learn_rate_neighbors: float = field(default=0.2, validator=[is_weight_factor])
@@ -111,40 +113,40 @@ class MergeGNG:
     allow_removal: bool = True
 
     # I don't want this parameter truth to be told
-    creation_frequency: int =5
+    creation_frequency: int = 5
 
     # Private variables. Default initializers depend on n_neurons and n_dim. The order matters!
-    _weights: NDArray = field(init=False, repr=repr_ndarray)
-    _context: NDArray = field(init=False, repr=repr_ndarray)
-    _connections: NDArray = field(init=False, repr=repr_ndarray)
-    _counter: NDArray = field(init=False, repr=False)
-    _global_context: NDArray = field(init=False, repr=repr_ndarray)
+    _weights: NDArray[np.floating[Any]] = field(init=False, repr=repr_ndarray)
+    _context: NDArray[np.floating[Any]] = field(init=False, repr=repr_ndarray)
+    _connections: NDArray[np.floating[Any]] = field(init=False, repr=repr_ndarray)
+    _counter: NDArray[np.floating[Any]] = field(init=False, repr=False)
+    _global_context: NDArray[np.floating[Any]] = field(init=False, repr=repr_ndarray)
 
     debug: bool = False
-    past: List[List[NDArray]] = field(init=False, factory=list, repr=False)
+    past: List[List[NDArray[np.floating[Any]]]] = field(init=False, factory=list, repr=False)
 
     @_weights.default
-    def _default_weights(self):
+    def _default_weights(self) -> NDArray[np.floating[Any]]:
         return np.random.rand(self.n_neurons, self.n_dim)
 
     @_context.default
-    def _default_context(self):
+    def _default_context(self) -> NDArray[np.floating[Any]]:
         return np.random.rand(self.n_neurons, self.n_dim)
 
     @_global_context.default
-    def _default_global_context(self):
+    def _default_global_context(self) -> NDArray[np.floating[Any]]:
         return np.random.rand(self.n_dim)
 
     @_connections.default
-    def _default_connections(self):
+    def _default_connections(self) -> NDArray[np.floating[Any]]:
         # XXX: we keep all neurons in memory such that we can do block operations
         return np.zeros((self.n_neurons, self.n_neurons))
 
     @_counter.default
-    def _default_counter(self):
+    def _default_counter(self) -> NDArray[np.floating[Any]]:
         return np.zeros(self.n_neurons)
 
-    def _decay(self, first: int):
+    def _decay(self, first: int) -> None:
         """
         Decrease all synapses of a neuron but don't allow negative synampses.
 
@@ -154,7 +156,7 @@ class MergeGNG:
             Index of the neuron
         """
 
-        def decay_vector(vector: np.ndarray):
+        def decay_vector(vector: NDArray[np.floating[Any]]) -> None:
             vector -= 1.0 / self.life_span
             vector[vector < 0] = 0
 
@@ -163,7 +165,8 @@ class MergeGNG:
         decay_vector(self._connections[:, first])
         logger.debug("after \n%s", self._connections)
 
-    def kill_orphans(self):
+    def kill_orphans(self) -> None:
+        """Remove orphaned neurons."""
         # argwhere not suitable for indexing
 
         orphans = np.nonzero(np.sum(self._connections, axis=1) == 0)
@@ -173,13 +176,13 @@ class MergeGNG:
         self._counter[orphans] = 0
         logger.debug("counter after: %s", self._counter)
 
-    def adapt(self, sample: np.ndarray) -> Tuple[int, int]:
+    def adapt(self, sample: NDArray[np.floating[Any]]) -> Tuple[int, int]:
         """
         Single adaptation step
 
         Parameters
         ----------
-        sample : np.ndarray, shape: :math:`(n_{\text{dim}},)`
+        sample : NDArray[np.floating[Any]], shape: :math:`(n_{\text{dim}},)`
             A single sample.
 
         Returns
@@ -201,16 +204,14 @@ class MergeGNG:
                 ]
             )
 
-        dist_weights = norm(self._weights - sample[np.newaxis, :], axis=-1)
-        dist_context = norm(self._context - self._global_context, axis=-1)
+        dist_weights = norm(self._weights - sample[np.newaxis, :], axis=-1)  # type: ignore
+        dist_context = norm(self._context - self._global_context, axis=-1)  # type: ignore
 
         logger.debug("|weights| = %s, |context| = %s", dist_weights, dist_context)
         logger.debug("connections at beginning:\n%s", self._connections)
 
         # Todo remove this variable
-        distance = (
-            1 - self.temporal_influence
-        ) * dist_weights + self.temporal_influence * dist_context
+        distance = (1 - self.temporal_influence) * dist_weights + self.temporal_influence * dist_context
 
         winners = np.argsort(
             distance
@@ -261,19 +262,15 @@ class MergeGNG:
         # self._context[neighbors, :] += self.learn_rate * self._connections[first, neighbors] *\
         #  (old_global_context - self._context[neighbors, :])
 
-        self._weights[neighbors, :] += self.learn_rate_neighbors * (
-            sample - self._weights[neighbors, :]
-        )
-        self._context[neighbors, :] += self.learn_rate_neighbors * (
-            old_global_context - self._context[neighbors, :]
-        )
+        self._weights[neighbors, :] += self.learn_rate_neighbors * (sample - self._weights[neighbors, :])
+        self._context[neighbors, :] += self.learn_rate_neighbors * (old_global_context - self._context[neighbors, :])
 
         self._counter[first] += 1
         logger.debug("New counter: %s, \n%s", self._counter, self._connections)
 
         return first, second
 
-    def grow(self):
+    def grow(self) -> None:
         """
         Entropy maximization by adding neurons in regions of high activity.
 
@@ -285,9 +282,7 @@ class MergeGNG:
         most = np.argmax(self._counter)
         its_neighbors = np.nonzero(self._connections[most, :])  # e.g., (array([0, 2]),)
         logger.debug(its_neighbors)
-        most_active_neighbors = np.argsort(
-            self._counter[its_neighbors]
-        )  # get the activations and sort them
+        most_active_neighbors = np.argsort(self._counter[its_neighbors])  # get the activations and sort them
         logger.debug(most_active_neighbors)
         # The last entry is the winning neuron itself (WATCH OUT unless the diagonal is zero!, in that case, use -1)
         neighbor = its_neighbors[0][most_active_neighbors[-1]]
@@ -314,7 +309,7 @@ class MergeGNG:
         self._connections[new, neighbor] = self._connections[neighbor, new] = 1.0
         self._connections[most, new] = self._connections[new, most] = 1.0
 
-    def kill_weakest(self) -> np.signedinteger:
+    def kill_weakest(self) -> np.signedinteger[Any]:
         """
         Finds the weakest neuron (or the first with zero activity in the list)
         and returns its index
@@ -330,16 +325,14 @@ class MergeGNG:
         logger.info("Did it have conntections?\n%s", self._connections[least, :])
 
         if np.sum(self._connections[least, :]) > 0:
-            logger.warning(
-                "Killing existing neuron. Consider larger pool! Activity: %f", self._counter[least]
-            )
+            logger.warning("Killing existing neuron. Consider larger pool! Activity: %f", self._counter[least])
 
         # Remove connections:
         self._connections[least, :] = 0.0
         self._connections[:, least] = 0.0
         return least
 
-    def learn(self, samples: np.ndarray, epochs: int):
+    def learn(self, samples: NDArray[np.floating[Any]], epochs: int) -> None:
         r"""
         Batch learning
 
@@ -353,40 +346,43 @@ class MergeGNG:
 
         assert samples.shape[1] == self.n_dim
 
-        for e in range(epochs):
+        for epoch in range(epochs):
             for i, sample in enumerate(samples):
-                logger.info("\n\n\n%s\nSample: %d, Epoch: %d", "*" * 24, i, e)
+                logger.info("\n\n\n%s\nSample: %d, Epoch: %d", "*" * 24, i, epoch)
                 self.adapt(sample)
                 self._counter *= self.decrease_activity
 
-                if True:
-                    if np.max(self._counter) >= self.max_activity:
-                        self.grow()
-                else:
-                    if i % self.creation_frequency == self.creation_frequency - 1:
-                        # Make this a factor depending on the activity of neurons
-                        self.grow()
+                if np.max(self._counter) >= self.max_activity:  # type: ignore
+                    self.grow()
+                # if i % self.creation_frequency == self.creation_frequency - 1:
+                #     # Make this a factor depending on the activity of neurons
+                #     self.grow()
 
-    def get_active_weights(self):
+    def get_active_weights(self) -> NDArray[np.floating[Any]]:
+        """Return active and inactive weights sorted."""
 
         # Watchout there is an argwhere not an nonzero
-        return (
-            self._weights[np.nonzero(self._counter > 0), :],
-            self._weights[np.nonzero(self._counter <= 0), :],
+
+        # TODO check whether vstack or hstack
+        return np.vstack(
+            (
+                self._weights[np.nonzero(self._counter > 0), :],
+                self._weights[np.nonzero(self._counter <= 0), :],
+            )
         )
 
 
 if __name__ == "__main__":
 
-    import matplotlib.pyplot as plt  # type: ignore
+    import matplotlib.pyplot as plt
 
     mgng = MergeGNG(connection_decay=0.1)
 
     print(mgng)
 
-    a = mgng.n_neurons
+    temp = mgng.n_neurons
 
-    X = get_dymmy_2D_data(20)
+    X = get_dymmy_2d_data(20)
 
     print(repr_ndarray(X))
 
