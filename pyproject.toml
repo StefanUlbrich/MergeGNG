@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "mgng"
+name = "lemonpy-mgng"
 version = "0.1.1"
 description = "mgng"
 authors = ["Stefan Ulbrich <6009224+stefanulbric@users.noreply.github.com>"]
@@ -10,7 +10,7 @@ classifiers = [
    "License :: OSI Approved :: MIT License"
 ]
 packages = [
-   { include = "mgng", from = "src"}
+   { include = "lemonpy_mgng", from = "src"}
 ]
 license = "MIT"
 
