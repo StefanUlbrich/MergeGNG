@@ -2,66 +2,71 @@
 name = "mgng"
 version = "0.1.1"
 description = "mgng"
-authors = ["Stefan Ulbrich <stefan.frank.ulbrich@gmail.com>"]
+authors = ["Stefan Ulbrich <6009224+stefanulbric@users.noreply.github.com>"]
 readme = "README.md"
 classifiers = [
-   "Private :: Do Not Upload", # https://github.com/sdispater/poetry/issues/302#issuecomment-467805206
+   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+   "Programming Language :: Python :: 3 :: Only",
+   "License :: OSI Approved :: MIT License"
 ]
 packages = [
    { include = "mgng", from = "src"}
 ]
-# build = 'build.py' # https://github.com/python-poetry/poetry/issues/11
-
+license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.7"
-# scikit-learn = "^0.22.2"
+python = ">=3.7.2,<4.0"
 numpy = "^1.18.1"
-attrs = "^21.2.0"
+attrs = "^22.1.0"
 
-[tool.poetry.dev-dependencies]
-sphinx = "^4.0.2"
-ipykernel = "^5.1.4"
-pylint = "^2.4.4"
-autopep8 = "^1.5"
-rope = "^0.19.0"
+[tool.poetry.group.dev.dependencies]
 pytest = "^6.2.4"
-pyenchant = "^3.0.1"
-doc8 = "^0.8.0"
-nbsphinx = "^0.5.1"
-# scipy = "1.3.2"
-recommonmark = "^0.7.1"
-matplotlib = "^3.2.0"
-# seaborn = "^0.10.0"
-black = "^21.5b1"
-nb_black = "^1.0.7"
-mypy = "^0.812"
-yapf = "^0.31.0"
-ipywidgets = "^7.6.3"
-sphinx-material = "^0.0.32"
-
-
-[tool.black]
-line-length = 100
-target-version = ['py37']
-include = '\.pyi?$'
-exclude = '''
-
-(
-  /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.mypy_cache
-    | \.tox
-    | _build
-    | buck-out
-    | build
-    | dist
-  )/
-)
-'''
+matplotlib = "^3.5.3"
+mypy = "^0.971"
+ipykernel = "^6.15.2"
+pylint = "^2.15.2"
+nb-black = "^1.0.7"
+black = "^22.8.0"
+ipywidgets = "^8.0.2"
+pre-commit = "^2.20.0"
+pydata-sphinx-theme = "^0.10.1"
+Sphinx = "^5.1.1"
+myst-parser = "^0.18.0"
+pyenchant = "^3.2.2"
 
 [build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+namespace_packages = true
+mypy_path = "src"
+show_error_codes = true
+strict = true
+
+[tool.isort]
+# https://pycqa.github.io/isort/docs/configuration/black_compatibility.html
+profile = "black"
+
+[[tool.mypy.overrides]]
+module = "numpy.linalg"
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 120
+target_version = ["py310"]
+
+[tool.pylint.format]
+max-line-length=120
+
+[tool.pylint."MESSAGES CONTROL"]
+# disable = ["missing-module-docstring"]
+
+[tool.pylint.basic]
+good-names=['R','t','i','j','k','ex','Run','_']
+
+[tool.pylint."SPELLING"]
+spelling-private-dict-file="PylintSpell.txt"

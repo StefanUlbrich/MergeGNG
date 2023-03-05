@@ -9,16 +9,15 @@ __copyright__ = "Copyright 2020, All rights reserved."
 __license__ = "Confidential"
 __version__ = "0.1"
 __maintainer__ = "Stefan Ulbrich"
-__email__ = "Stefan.Ulbrich@gmail.com"
 __status__ = "alpha"
 __date__ = "2020-01-27"
 
 from typing import Any
+
 import numpy as np
-# from .mgng import MergeGNG
 
 
-def is_weight_factor(instance: Any, attribute, value: float):
+def is_weight_factor(instance: Any, attribute, value: float):  # pylint: disable=unused-argument
     r"""
     Validator for decay factors :math:`\gamma` : :math:`0 < \gamma < \leq 1`
 
@@ -34,7 +33,7 @@ def is_weight_factor(instance: Any, attribute, value: float):
         raise ValueError(f"Value out of bounds: {value}")
 
 
-def is_greater_zero(instance: Any, attribute, value: float):
+def is_greater_zero(instance: Any, attribute, value: float):  # pylint: disable=unused-argument
     """
     Validator to check for stricly positive values.
     """
